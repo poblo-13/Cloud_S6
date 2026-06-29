@@ -1,0 +1,39 @@
+services:
+  db:
+    image: mysql:8.0
+    container_name: guias_mysql
+    restart: always
+    environment:
+      MYSQL_DATABASE: guias_semana5
+      MYSQL_USER: guias_user
+      MYSQL_PASSWORD: guias1234
+      MYSQL_ROOT_PASSWORD: root1234
+    ports:
+      - "3307:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "guias_user", "-pguias1234"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  app:
+    build: .
+    container_name: guias_app
+    restart: always
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "9090:9090"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://db:3306/guias_semana5?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+      SPRING_DATASOURCE_USERNAME: guias_user
+      SPRING_DATASOURCE_PASSWORD: guias1234
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+      AWS_SESSION_TOKEN: ${AWS_SESSION_TOKEN}
+
+volumes:
+  mysql_data:

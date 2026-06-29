@@ -15,13 +15,21 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
-            .csrf(csrf -> csrf.disable()) 
+            .csrf(csrf -> csrf.disable())
             .authorizeHttpRequests(authz -> authz
-                // REGLA 1 Solo lectura (y admin) pueden descargar
-                .requestMatchers("/api/guias/descargar/**").hasAnyAuthority("ROLE_consulta", "ROLE_admin")
-                // REGLA 2 Administrador tiene acceso a todo lo demas
-                .requestMatchers("/api/guias/**").hasAuthority("ROLE_admin")
-                .anyRequest().authenticated()
+
+                // ROLE_consulta y ROLE_admin pueden descargar guías
+                .requestMatchers("/api/guias/descargar/**")
+                    .hasAnyAuthority("ROLE_consulta", "ROLE_admin")
+
+                // Solo ROLE_admin puede usar el resto de endpoints de guías:
+                // crear, actualizar, eliminar, buscar y subir a S3
+                .requestMatchers("/api/guias/**")
+                    .hasAuthority("ROLE_admin")
+
+                // Cualquier otra ruta requiere autenticación
+                .anyRequest()
+                    .authenticated()
             )
             .oauth2ResourceServer(oauth2 -> oauth2
                 .jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthenticationConverter()))
@@ -33,12 +41,17 @@ public class SecurityConfig {
     @Bean
     public JwtAuthenticationConverter jwtAuthenticationConverter() {
         JwtGrantedAuthoritiesConverter grantedAuthoritiesConverter = new JwtGrantedAuthoritiesConverter();
-        // Mapeamos el Custom Claim exacto que pide la guia
+
+        // Claim personalizado que viene desde Azure AD B2C
         grantedAuthoritiesConverter.setAuthoritiesClaimName("extension_consultaRole");
+
+        // Si Azure entrega "admin", Spring lo convierte en "ROLE_admin"
+        // Si Azure entrega "consulta", Spring lo convierte en "ROLE_consulta"
         grantedAuthoritiesConverter.setAuthorityPrefix("ROLE_");
 
         JwtAuthenticationConverter jwtAuthenticationConverter = new JwtAuthenticationConverter();
         jwtAuthenticationConverter.setJwtGrantedAuthoritiesConverter(grantedAuthoritiesConverter);
+
         return jwtAuthenticationConverter;
     }
 }
