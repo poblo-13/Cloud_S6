@@ -7,6 +7,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
+import com.duoc.guiasdespacho.producer.GuiaProducer;
+import com.duoc.guiasdespacho.model.GuiaProcesada;
+import com.duoc.guiasdespacho.service.GuiaColaService;
 
 import java.io.IOException;
 import java.time.LocalDate;
@@ -22,10 +25,17 @@ public class GuiaDespachoController {
     @Autowired
     private S3Service s3Service;
 
+    @Autowired
+    private GuiaProducer guiaProducer;
+
+    @Autowired
+    private GuiaColaService guiaColaService;
+
     // 1. Crear guías de despacho — Solo ROLE_admin
     @PostMapping
     public ResponseEntity<GuiaDespacho> crearGuia(@RequestBody GuiaDespacho guia) {
         GuiaDespacho nuevaGuia = repository.save(guia);
+        guiaProducer.enviarGuiaACola(nuevaGuia);
         return ResponseEntity.status(201).body(nuevaGuia);
     }
 
@@ -87,5 +97,17 @@ public class GuiaDespachoController {
                     return ResponseEntity.ok("URL de descarga (válida 15 min): " + urlDescarga);
                 })
                 .orElseGet(() -> ResponseEntity.notFound().<String>build());
+    }
+
+    // 7. Procesar mensaje desde cola.guias y guardar en tabla guias_procesadas — Solo ROLE_admin
+    @PostMapping("/procesar-cola")
+    public ResponseEntity<?> procesarCola() {
+        GuiaProcesada guiaProcesada = guiaColaService.procesarSiguienteMensaje();
+
+        if (guiaProcesada == null) {
+            return ResponseEntity.ok("No hay mensajes pendientes en cola.guias o el mensaje fue enviado a cola de errores.");
+        }
+
+        return ResponseEntity.ok(guiaProcesada);
     }
 }
